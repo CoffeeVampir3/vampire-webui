@@ -1,10 +1,6 @@
 import gradio as gr
 import diffusion_pipeline as dp
 
-
-num_images = 1
-prompt = ["Woman riding a horse, moonlight, oil painting on canvas"] * num_images
-
 prompt_textbox = gr.inputs.Textbox(lines=3, placeholder="")
 num_inputs_slider = gr.inputs.Slider(minimum=1, maximum=100,default=1,step=1)
 width_slider = gr.inputs.Slider(minimum=256, maximum=2048,default=512,step=64)
