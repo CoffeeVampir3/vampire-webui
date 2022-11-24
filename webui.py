@@ -11,5 +11,5 @@ cfg_slider = gr.inputs.Slider(minimum=1, maximum=30,default=7,step=0.5)
 output_img = gr.Gallery(type="pil")
 
 app_inputs = [prompt_textbox, num_inputs_slider, width_slider, height_slider, num_steps_slider, cfg_slider]
-app = gr.Interface(fn=dp.testpipeline, inputs=app_inputs, outputs=output_img)
+app = gr.Interface(fn=dp.testpipeline, inputs=app_inputs, outputs=output_img, allow_flagging="never")
 app.launch()
