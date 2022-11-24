@@ -9,7 +9,7 @@ def no_nsfw_filter(images, clip_input):
     return images, False
 
 def testpipeline(prompt, neg_prompt, num_images, width, height, num_steps, cfg):
-    pipe = StableDiffusionPipeline.from_pretrained("./content/stable-diffusion-2-base", safety_checker=None)
+    pipe = StableDiffusionPipeline.from_pretrained("./content/stable-diffusion-2", safety_checker=None)
     print(pipe)
     pipe = pipe.to("cuda")
 
