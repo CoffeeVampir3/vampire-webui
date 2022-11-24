@@ -8,14 +8,14 @@ from diffusers import StableDiffusionPipeline
 def no_nsfw_filter(images, clip_input):
     return images, False
 
-def testpipeline(prompt, neg_prompt, num_images, width, height, num_steps, cfg):
+def testpipeline(prompt, neg_prompt, seed, num_images, width, height, num_steps, cfg):
     pipe = StableDiffusionPipeline.from_pretrained("./content/stable-diffusion-2-base", safety_checker=None)
     print(pipe)
     pipe = pipe.to("cuda")
 
     print(pipe)
 
-    generator = torch.Generator("cuda").manual_seed(1024)
+    generator = torch.Generator("cuda").manual_seed(seed)
     torch.cuda.empty_cache()
     torch.cuda.synchronize()
 
