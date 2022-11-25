@@ -1,19 +1,8 @@
 from omegaconf import OmegaConf
 from pathlib import Path
 
-def save_ui_config(prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
-    config = OmegaConf.create({
-        "prompt": prompt,
-        "neg_prompt":neg_prompt,
-        "seed":seed,
-        "generate_x_in_parallel":generate_x_in_parallel,
-        "batches":batches,
-        "width":width,
-        "height":height,
-        "num_steps":num_steps,
-        "cfg":cfg
-    })
-
+def save_ui_config(**kwargs):
+    config = OmegaConf.create(kwargs)
     dir_path = Path("./configs")
     file_name = "last_run.yaml"
     if not dir_path.exists():

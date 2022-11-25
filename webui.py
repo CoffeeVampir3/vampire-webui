@@ -22,8 +22,4 @@ txt_to_img_interface = gr.Interface(fn=dp.run_pipeline, inputs=app_inputs, outpu
 app = gr.Blocks()
 with app:
     gr.Interface(fn=dp.run_pipeline, inputs=app_inputs, outputs=output_img, allow_flagging="never")
-
-#dp.load_pipeline()
-#app = gr.TabbedInterface([txt_to_img_interface, test_button_interface])
-#app = gr.Interface(fn=dp.run_pipeline, inputs=app_inputs, outputs=output_img, allow_flagging="never")
 app.launch()
