@@ -12,7 +12,9 @@ def auto_seed():
 
 def model_changed(new_model):
     dp.load_pipeline(new_model)
-    print(f'Loaded {new_model}')
+
+def sampler_changed(new_sampler):
+    dp.switch_sampler(new_sampler)
 
 css = """
         #seedbox {width: 30%; justify-content:space-between;}
@@ -21,8 +23,6 @@ css = """
         #noborder {border-style:none; border-color: transparent;}
         #model_dropdown {width:30%; background: transparent; justify-content:space-between;}
     """
-
-ui_config.enumerate_models()
 
 app = gr.Blocks(css=css)
 with app:
@@ -53,6 +53,9 @@ with app:
             with gr.Row():
                 model_dropdown = gr.Dropdown(label="Model", choices=ui_config.enumerate_models())
                 model_dropdown.change(fn=model_changed, inputs=model_dropdown, outputs=None)
+
+                sampler_dropdown = gr.Dropdown(label="Sampler", choices=dp.enumerate_samplers())
+                sampler_dropdown.change(fn=sampler_changed, inputs=sampler_dropdown, outputs=None)
 
                 app_inputs = [model_dropdown, prompt_textbox, negative_prompt_textbox, seed, in_parallel_slider, generation_runs_slider, width_slider, height_slider, num_steps_slider, cfg_slider]
                 launch_btn = gr.Button(value="Generate")
