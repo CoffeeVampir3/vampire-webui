@@ -12,6 +12,7 @@ global sampler
 
 def run_pipeline(model_id, prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
     global pipe
+    global sampler
     global current_model_path
     if pipe is None:
         print('Wait for the model to load or select a model to load if none are selected.')
@@ -54,7 +55,6 @@ def run_pipeline(model_id, prompt, neg_prompt, seed, generate_x_in_parallel, bat
 
 def load_pipeline(model_id):
     global pipe
-    global sampler
     global current_model_path
     pipe = None
     if model_id is None:
@@ -72,9 +72,6 @@ def switch_sampler(new_sampler):
     global sampler
     all_samplers = get_sampling_strategies()
     out = all_samplers[new_sampler]
-    if out is None:
-        return
-
     sampler = out
 
 def get_sampling_strategies():
