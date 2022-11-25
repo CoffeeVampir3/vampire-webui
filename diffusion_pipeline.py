@@ -2,13 +2,16 @@ import torch
 import tqdm
 from torch import autocast
 from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
+import ui_config as conf
 
 global pipe
 
-def testpipeline(prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
+def run_pipeline(prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
+    conf.save_ui_config(prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg)
+    return []
     global pipe
     generator = torch.Generator("cuda").manual_seed(seed)
-    print(f'Prompt: {prompt}, negatives: {neg_prompt}, seed: {seed}, nimages: {generate_x_in_parallel}, w: {width}, h: {height}, steps: {num_steps}, cfg: {cfg}')
+
     multi_prompt = [prompt] * generate_x_in_parallel
     multi_negative_prompt = [neg_prompt] * generate_x_in_parallel
 
