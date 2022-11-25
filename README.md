@@ -13,6 +13,11 @@ conda env create -f environment.yaml
 conda activate ldm
 ```
 
+Install torch and dependencies
+```
+conda install pytorch==1.12.1 torchvision==0.13.1 -c pytorch
+```
+
 Install transformers and dependencies
 ```
 pip install transformers==4.19.2
