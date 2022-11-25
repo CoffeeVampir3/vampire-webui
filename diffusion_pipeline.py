@@ -7,17 +7,6 @@ import ui_config as conf
 global pipe
 
 def run_pipeline(prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
-    conf.save_ui_config(
-        prompt=prompt, 
-        neg_prompt=neg_prompt, 
-        seed=seed, 
-        generate_x_in_parallel=generate_x_in_parallel, 
-        batches=batches, 
-        width=width, 
-        height=height, 
-        num_steps=num_steps, 
-        cfg=cfg)
-    return []
     global pipe
     generator = torch.Generator("cuda").manual_seed(seed)
 
@@ -34,13 +23,24 @@ def run_pipeline(prompt, neg_prompt, seed, generate_x_in_parallel, batches, widt
     
     torch.cuda.empty_cache()
     torch.cuda.synchronize()
+
+    conf.save_ui_config(
+        prompt=prompt, 
+        neg_prompt=neg_prompt, 
+        seed=seed, 
+        generate_x_in_parallel=generate_x_in_parallel, 
+        batches=batches, 
+        width=width, 
+        height=height, 
+        num_steps=num_steps, 
+        cfg=cfg)
     return images
 
 def load_pipeline():
+    global pipe
     model_id = "stable-diffusion-2"
     model_path = f"./content/{model_id}"
     scheduler = EulerDiscreteScheduler.from_pretrained(model_path, subfolder="scheduler")
-    global pipe
     pipe = StableDiffusionPipeline.from_pretrained(model_path, safety_checker=None, scheduler=scheduler)
     pipe = pipe.to("cuda")
     torch.cuda.empty_cache()

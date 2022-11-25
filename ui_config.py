@@ -16,16 +16,7 @@ def load_ui_config():
     dest = (dir_path/file_name)
 
     if not dest.exists():
-        return OmegaConf.create({
-            "prompt": "",
-            "neg_prompt":"",
-            "seed":12345,
-            "generate_x_in_parallel":1,
-            "batches":1,
-            "width":768,
-            "height":768,
-            "num_steps":20,
-            "cfg":7
-        })
+        return ("banana", "", 1, 1, 1, 768, 768, 20, 7)
+
     config = OmegaConf.load(dest)
-    return config
+    return list(config.values())
