@@ -8,7 +8,7 @@ import random
 
 global pipe
 
-def run_pipeline(prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
+def run_pipeline(model_id, prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
     global pipe
 
     nseed = random.randint(0, (sys.maxsize/64)) if seed == -1 else seed
@@ -29,6 +29,7 @@ def run_pipeline(prompt, neg_prompt, seed, generate_x_in_parallel, batches, widt
     torch.cuda.synchronize()
 
     conf.save_ui_config(
+        model_id=model_id,
         prompt=prompt, 
         neg_prompt=neg_prompt, 
         seed=seed, 
@@ -40,9 +41,12 @@ def run_pipeline(prompt, neg_prompt, seed, generate_x_in_parallel, batches, widt
         cfg=cfg)
     return images
 
-def load_pipeline():
+def load_pipeline(model_id):
     global pipe
-    model_id = "stable-diffusion-2"
+    if model_id is None:
+        print("Cannot load empty model!")
+        pipe = None
+        return
     model_path = f"./content/{model_id}"
     scheduler = EulerDiscreteScheduler.from_pretrained(model_path, subfolder="scheduler")
     pipe = StableDiffusionPipeline.from_pretrained(model_path, safety_checker=None, scheduler=scheduler)

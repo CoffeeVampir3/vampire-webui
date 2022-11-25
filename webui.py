@@ -10,14 +10,20 @@ def randomize_seed():
 def auto_seed():
     return -1
 
+def model_changed(new_model):
+    dp.load_pipeline(new_model)
+    print(f'Loaded {new_model}')
+
 css = """
         #seedbox {width: 30%; justify-content:space-between;}
         #seedsliders {min-width: 67%; flex-grow: 1; background: transparent; border-style:none;}
         #gallerybox {background: transparent; border-style:none;}
         #noborder {border-style:none; border-color: transparent;}
+        #model_dropdown {width:30%; background: transparent; justify-content:space-between;}
     """
 
-dp.load_pipeline()
+ui_config.enumerate_models()
+
 app = gr.Blocks(css=css)
 with app:
     with gr.Row():
@@ -43,9 +49,15 @@ with app:
         with gr.Box(elem_id="gallerybox"):
             output_img = gr.Gallery()
 
-            app_inputs = [prompt_textbox, negative_prompt_textbox, seed, in_parallel_slider, generation_runs_slider, width_slider, height_slider, num_steps_slider, cfg_slider]
-            launch_btn = gr.Button(value="Generate")
-            launch_btn.click(fn=dp.run_pipeline, inputs=app_inputs, outputs=output_img)
+           
+            with gr.Row():
+                model_dropdown = gr.Dropdown(label="Model", choices=ui_config.enumerate_models())
+                model_dropdown.change(fn=model_changed, inputs=model_dropdown, outputs=None)
+
+                app_inputs = [model_dropdown, prompt_textbox, negative_prompt_textbox, seed, in_parallel_slider, generation_runs_slider, width_slider, height_slider, num_steps_slider, cfg_slider]
+                launch_btn = gr.Button(value="Generate")
+                launch_btn.click(fn=dp.run_pipeline, inputs=app_inputs, outputs=output_img)
+
         app.load(ui_config.load_ui_config, inputs=None, outputs=app_inputs)
 
 app.launch()
