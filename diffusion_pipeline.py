@@ -3,12 +3,16 @@ import tqdm
 from torch import autocast
 from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
 import ui_config as conf
+import sys
+import random
 
 global pipe
 
 def run_pipeline(prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
     global pipe
-    generator = torch.Generator("cuda").manual_seed(seed)
+
+    nseed = random.randint(0, (sys.maxsize/64)) if seed == -1 else seed
+    generator = torch.Generator("cuda").manual_seed(nseed)
 
     multi_prompt = [prompt] * generate_x_in_parallel
     multi_negative_prompt = [neg_prompt] * generate_x_in_parallel
