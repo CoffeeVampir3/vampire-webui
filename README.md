@@ -1,7 +1,7 @@
 # vampire-webui
 
 In development web-ui for running SD 2.0 locally, using diffusers.
-![alt text](https://github.com/CoffeeVampir3/vampire-webui/blob/a438783f0f90ec40563e7747938a11e832792d8a/image.png)
+![alt text](https://github.com/CoffeeVampir3/vampire-webui/blob/96733e8763bcb02b975687a050337482dcd5fb2c/image.png)
 
 # Installation
 
