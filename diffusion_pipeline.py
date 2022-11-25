@@ -20,7 +20,7 @@ def run_pipeline(prompt, neg_prompt, seed, generate_x_in_parallel, batches, widt
     images = []
     with autocast("cuda"):
         for i in range(batches):
-            generator = torch.Generator("cuda").manual_seed(seed + i)
+            generator = torch.Generator("cuda").manual_seed(nseed + i)
             out = pipe(prompt=multi_prompt, negative_prompt=multi_negative_prompt, height=height, width=width, num_inference_steps=num_steps, guidance_scale=cfg,generator=generator)
             images.extend(out.images)
             del out
