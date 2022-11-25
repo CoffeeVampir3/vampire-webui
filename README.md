@@ -13,6 +13,12 @@ conda env create -f environment.yaml
 conda activate ldm
 ```
 
+Install transformers and dependencies
+```
+pip install transformers==4.19.2
+pip install -e .
+```
+
 Run initial_setup.py, this will clone the huggingface diffusers for SD 2.0 into a new folder called content
 ```
 python initial_setup.py
