@@ -9,7 +9,7 @@ In the main directory for windows:
 
 ```python
 conda activate ldm
-python webui.py
+python ui/webui.py
 ```
 
 Linux:
