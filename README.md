@@ -15,7 +15,8 @@ python ui/webui.py
 Linux:
 
 ```shell
-. launch.sh
+conda activate ldm
+python ui/webui.py
 ```
 
 # Installation
