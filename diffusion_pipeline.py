@@ -10,7 +10,7 @@ global pipe
 global current_model_path
 global sampler
 
-def run_pipeline(model_id, prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
+def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
     global pipe
     global sampler
     global current_model_path
@@ -42,6 +42,7 @@ def run_pipeline(model_id, prompt, neg_prompt, seed, generate_x_in_parallel, bat
 
     conf.save_ui_config(
         model_id=model_id,
+        sampler_id=sampler_id,
         prompt=prompt, 
         neg_prompt=neg_prompt, 
         seed=seed, 
@@ -78,7 +79,7 @@ def get_sampling_strategies():
     samplers = {
         "DDIM": DDIMScheduler,
         "Euler": EulerDiscreteScheduler,
-        "DPM++": DPMSolverMultistepScheduler
+        "DPM": DPMSolverMultistepScheduler
     }
     return samplers
 

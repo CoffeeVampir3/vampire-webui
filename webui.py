@@ -57,7 +57,7 @@ with app:
                 sampler_dropdown = gr.Dropdown(label="Sampler", choices=dp.enumerate_samplers())
                 sampler_dropdown.change(fn=sampler_changed, inputs=sampler_dropdown, outputs=None)
 
-                app_inputs = [model_dropdown, prompt_textbox, negative_prompt_textbox, seed, in_parallel_slider, generation_runs_slider, width_slider, height_slider, num_steps_slider, cfg_slider]
+                app_inputs = [model_dropdown, sampler_dropdown, prompt_textbox, negative_prompt_textbox, seed, in_parallel_slider, generation_runs_slider, width_slider, height_slider, num_steps_slider, cfg_slider]
                 launch_btn = gr.Button(value="Generate")
                 launch_btn.click(fn=dp.run_pipeline, inputs=app_inputs, outputs=output_img)
 

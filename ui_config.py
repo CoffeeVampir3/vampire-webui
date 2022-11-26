@@ -17,7 +17,7 @@ def load_ui_config():
     dest = (dir_path/file_name)
 
     if not dest.exists():
-        return ("stable-diffusion-2", "", "", 1, 1, 1, 768, 768, 20, 7)
+        return ("stable-diffusion-2", "DPM", "", "", 1, 1, 1, 768, 768, 20, 7)
 
     config = OmegaConf.load(dest)
     return list(config.values())
