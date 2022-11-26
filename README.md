@@ -3,6 +3,15 @@
 In development web-ui for running SD 2.0 locally, using diffusers.
 ![alt text](https://github.com/CoffeeVampir3/vampire-webui/blob/96733e8763bcb02b975687a050337482dcd5fb2c/image.png)
 
+# Usage
+
+In the main directory:
+
+```python
+conda activate ldm
+python webui.py
+```
+
 # Installation
 
 Installation is still being worked on. If you're encountering errors please open an issue.
