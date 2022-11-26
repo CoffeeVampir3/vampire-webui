@@ -5,11 +5,17 @@ In development web-ui for running SD 2.0 locally, using diffusers.
 
 # Usage
 
-In the main directory:
+In the main directory for windows:
 
 ```python
 conda activate ldm
 python webui.py
+```
+
+Linux:
+
+```shell
+. launch.sh
 ```
 
 # Installation
