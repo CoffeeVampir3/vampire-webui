@@ -10,6 +10,29 @@ global pipe
 global current_model_path
 global sampler
 
+def test_load_pt_embedding(embedding_name, pipe):
+    embedding_path = embedding_name + ".pt"
+    loaded_embeds = torch.load(embedding_path, map_location="cpu")
+    print(loaded_embeds)
+    print(loaded_embeds.keys())
+    string_to_token = loaded_embeds['string_to_token']
+    string_to_param = loaded_embeds['string_to_param']
+    token = list(string_to_token.keys())[0]
+    print(f'got key{token}')
+
+    embeds = string_to_param[token]
+    dtype = pipe.text_encoder.get_input_embeddings().weight.dtype
+    embeds.to(dtype)
+    
+    token = '<art by {embedding_name}>'
+    num_added_tokens = pipe.tokenizer.add_tokens(token)
+    if num_added_tokens == 0:
+        return None
+    pipe.text_encoder.resize_token_embeddings(len(pipe.tokenizer))
+    token_id = pipe.tokenizer.convert_tokens_to_ids(token)
+    pipe.text_encoder.get_input_embeddings().weight.data[token_id] = embeds
+
+
 def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
     global pipe
     global sampler
@@ -32,9 +55,10 @@ def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_p
     images = []
     with autocast("cuda"):
         for i in range(batches):
-            generator = torch.Generator("cuda").manual_seed(nseed + i)
+            generator.manual_seed(nseed + i)
             out = pipe(prompt=multi_prompt, negative_prompt=multi_negative_prompt, height=height, width=width, num_inference_steps=num_steps, guidance_scale=cfg,generator=generator)
             images.extend(out.images)
+            yield images
             del out
     
     torch.cuda.empty_cache()
