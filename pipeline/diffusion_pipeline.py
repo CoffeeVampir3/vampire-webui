@@ -1,7 +1,8 @@
 import torch
 import tqdm
 from torch import autocast
-from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, DDIMScheduler, DPMSolverMultistepScheduler
+from diffusers import EulerDiscreteScheduler, DDIMScheduler, DPMSolverMultistepScheduler
+from pipeline.HijackedDiffusion import ModifiedDiffusionPipeline
 import ui.ui_config as conf
 import sys
 import random
@@ -10,28 +11,37 @@ global pipe
 global current_model_path
 global sampler
 
+#Working but considering UI implementation.
+"""
 def test_load_pt_embedding(embedding_name, pipe):
+    #Load an embedding
     embedding_path = embedding_name + ".pt"
     loaded_embeds = torch.load(embedding_path, map_location="cpu")
     print(loaded_embeds)
     print(loaded_embeds.keys())
+
+    #trick to get the * token out of the embedding
     string_to_token = loaded_embeds['string_to_token']
     string_to_param = loaded_embeds['string_to_param']
     token = list(string_to_token.keys())[0]
     print(f'got key{token}')
 
+    #we cast the embeds to the correct type
     embeds = string_to_param[token]
     dtype = pipe.text_encoder.get_input_embeddings().weight.dtype
     embeds.to(dtype)
     
+    #try to form the embedding token if it's not already existant in the token data
     token = '<art by {embedding_name}>'
     num_added_tokens = pipe.tokenizer.add_tokens(token)
     if num_added_tokens == 0:
         return None
+
+    #add the embedding token into the tokenizer and add the embed weights to the text encoder
     pipe.text_encoder.resize_token_embeddings(len(pipe.tokenizer))
     token_id = pipe.tokenizer.convert_tokens_to_ids(token)
     pipe.text_encoder.get_input_embeddings().weight.data[token_id] = embeds
-
+"""
 
 def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_parallel, batches, width, height, num_steps, cfg):
     global pipe
@@ -88,7 +98,7 @@ def load_pipeline(model_id):
     model_path = f"./content/{model_id}"
     current_model_path = model_path
 
-    pipe = StableDiffusionPipeline.from_pretrained(model_path, safety_checker=None)
+    pipe = ModifiedDiffusionPipeline.from_pretrained(model_path, safety_checker=None)
     pipe = pipe.to("cuda")
     torch.cuda.empty_cache()
     torch.cuda.synchronize()
