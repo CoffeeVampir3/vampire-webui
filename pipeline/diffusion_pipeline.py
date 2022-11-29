@@ -2,7 +2,7 @@ import torch
 import tqdm
 from torch import autocast
 from diffusers import EulerDiscreteScheduler, DDIMScheduler, DPMSolverMultistepScheduler
-from pipeline.HijackedDiffusion import ModifiedDiffusionPipeline
+from pipeline.modified_stable_diffusion import ModifiedDiffusionPipeline
 import ui.ui_config as conf
 import sys
 import random
