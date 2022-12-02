@@ -1,4 +1,5 @@
 import inspect
+import math
 import torch
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer, PreTrainedModel, CLIPConfig
 from typing import Callable, List, Optional, Union
@@ -130,6 +131,51 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
                 return torch.device(module._hf_hook.execution_device)
         return self.device
 
+    def weigh_embeddings(self, prompt, text_embeddings, attention_mask, device):
+        #Create a baseline of empty tokens, then encode them to get the empty weights
+        baseline = self.tokenizer(
+            [''] * len(prompt),
+            padding="max_length",
+            max_length=self.tokenizer.model_max_length,
+            truncation=True,
+            return_tensors="pt",
+        )
+        embedding_baseline = self.text_encoder(
+            baseline.input_ids.to(device),
+            attention_mask=attention_mask,
+        )
+        embedding_baseline = embedding_baseline[0]
+
+        #Create an unweighted set of weights
+        weights = torch.full(text_embeddings.shape, 1.0).to(device)
+
+        tokens = self.tokenizer.tokenize(prompt[0])
+
+        tokenstack = []
+        for index, x in enumerate(tokens):
+            if(x == None or x == ''):
+                continue
+            lcount = x.count('(')
+            rcount = x.count(')')
+
+            if len(tokenstack) > 0 and (lcount+rcount) == 0:
+                val = tokenstack[-1]
+                weights[..., index+1] *= val
+                print(f"Applied weights: {val} to token: {x}")
+
+            [tokenstack.append(max(tokenstack, default=1.0) + .1) for k in range(0, lcount)]
+            try:
+                [tokenstack.pop() for k in range(0, rcount)]
+            except:
+                print("Your prompt does not have a balanced number of opening and closing emphasis brackets!")
+        #take the delta of our embedding against the baseline
+        deltas = text_embeddings - embedding_baseline
+
+        #Weigh our deltas and then add them back to the baseline.
+        weighted = (embedding_baseline + (deltas * weights))
+
+        return weighted
+
     def _encode_prompt(self, prompt, device, num_images_per_prompt, do_classifier_free_guidance, negative_prompt):
         batch_size = len(prompt) if isinstance(prompt, list) else 1
 
@@ -140,6 +186,7 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
             truncation=True,
             return_tensors="pt",
         )
+
         text_input_ids = text_inputs.input_ids
         untruncated_ids = self.tokenizer(prompt, padding="max_length", return_tensors="pt").input_ids
 
@@ -160,6 +207,8 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
             attention_mask=attention_mask,
         )
         text_embeddings = text_embeddings[0]
+
+        text_embeddings = self.weigh_embeddings(prompt, text_embeddings, attention_mask, device)
 
         bs_embed, seq_len, _ = text_embeddings.shape
         text_embeddings = text_embeddings.repeat(1, num_images_per_prompt, 1)
@@ -325,3 +374,27 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
             return (image, None)
 
         return ModifiedDiffusionPipelineOutput(images=image, nsfw_content_detected=None)
+
+#Latents decoder
+"""
+        print(latents.shape)
+        latent_rgb_factors = torch.tensor([
+            #   R        G        B
+            [0.298, 0.207, 0.208],  # L1
+            [0.187, 0.286, 0.173],  # L2
+            [-0.158, 0.189, 0.264],  # L3
+            [-0.184, -0.271, -0.473],  # L4
+        ]).cuda()
+        rgb = torch.einsum('...lhw,lr -> ...rhw', latents, latent_rgb_factors)
+
+        import einops
+        tensor = (((rgb + 1) / 2)
+            .clamp(0, 1)  # change scale from -1..1 to 0..1
+            .mul(0xFF)  # to 0..255
+            .byte())
+        tensor = torch.squeeze(tensor)
+        tensor = einops.rearrange(tensor, 'c h w -> h w c')
+
+        image = [PIL.Image.fromarray(tensor.cpu().numpy())]
+        return ModifiedDiffusionPipelineOutput(images=image, nsfw_content_detected=None)
+"""

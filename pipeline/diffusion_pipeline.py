@@ -1,11 +1,19 @@
 import torch
-import tqdm
 from torch import autocast
-from diffusers import EulerDiscreteScheduler, DDIMScheduler, DPMSolverMultistepScheduler
 from pipeline.modified_stable_diffusion import ModifiedDiffusionPipeline
 import ui.ui_config as conf
 import sys
 import random
+
+from diffusers import (
+    DDIMScheduler,
+    DPMSolverMultistepScheduler,
+    DDPMScheduler,
+    EulerAncestralDiscreteScheduler,
+    EulerDiscreteScheduler,
+    LMSDiscreteScheduler,
+    PNDMScheduler,
+)
 
 global pipe
 global current_model_path
@@ -113,9 +121,13 @@ def get_sampling_strategies():
     samplers = {
         "DDIM": DDIMScheduler,
         "Euler": EulerDiscreteScheduler,
+        "Euler-A": EulerAncestralDiscreteScheduler,
+        "LMS": LMSDiscreteScheduler,
+        "PNDM": PNDMScheduler,
         "DPM": DPMSolverMultistepScheduler
     }
     return samplers
+
 
 def enumerate_samplers():
     samplers = list(get_sampling_strategies().keys())
