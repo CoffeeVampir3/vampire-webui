@@ -111,13 +111,16 @@ def encode_exif_data(image, seed, image_num, batch_number, config):
     #unicode
     prefix = bytes.fromhex('554E49434F444500')
     content = ""
+    #hacky but whatever
+    config.seed = seed
+    config.generate_x_in_parallel = image_num
+    config.batches = batch_number 
     for cf, cv in zip(list(config), list(config.values())):
         content += cf + ": " + str(cv) + "\n"
 
-    #outstring = (re.sub('.', lambda x: r'\u % 04X' % ord(x.group()), output))
-    #res.encode()
     exif_data = image.getexif()
-    exif_data[0x9286] = prefix + content.encode('utf-16le')
+    user_comment_tiff = 0x9286
+    exif_data[user_comment_tiff] = prefix + content.encode('utf-16le')
     image.save(dest, exif=exif_data)
     return image
 
