@@ -131,48 +131,32 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
                 return torch.device(module._hf_hook.execution_device)
         return self.device
 
-    def weigh_embeddings(self, prompt, text_embeddings, attention_mask, device):
-        #Create a baseline of empty tokens, then encode them to get the empty weights
-        baseline = self.tokenizer(
-            [''] * len(prompt),
-            padding="max_length",
-            max_length=self.tokenizer.model_max_length,
-            truncation=True,
-            return_tensors="pt",
-        )
-        embedding_baseline = self.text_encoder(
-            baseline.input_ids.to(device),
-            attention_mask=attention_mask,
-        )
-        embedding_baseline = embedding_baseline[0]
-
+    def weigh_embeddings(self, prompt, text_embeddings, device):
         #Create an unweighted set of weights
         weights = torch.full(text_embeddings.shape, 1.0).to(device)
 
         tokens = self.tokenizer.tokenize(prompt[0])
 
-        tokenstack = []
-        for index, x in enumerate(tokens):
-            if(x == None or x == ''):
-                continue
-            lcount = x.count('(')
-            rcount = x.count(')')
+        #add token weights using a simple moving sum of brackets
+        current_weight = 1.0
+        bracket_weight = 0.1
+        for index, token in enumerate(tokens):
+            positive_right, positive_left = token.count('('), token.count(')')
+            negative_right, negative_left = token.count('['), token.count(']')
 
-            if len(tokenstack) > 0 and (lcount+rcount) == 0:
-                val = tokenstack[-1]
-                weights[..., index+1] *= val
-                print(f"Applied weights: {val} to token: {x}")
+            positive_direction = positive_right + negative_left
+            negative_direction = -(negative_right + positive_left)
 
-            [tokenstack.append(max(tokenstack, default=1.0) + .1) for k in range(0, lcount)]
-            try:
-                [tokenstack.pop() for k in range(0, rcount)]
-            except:
-                print("Your prompt does not have a balanced number of opening and closing emphasis brackets!")
-        #take the delta of our embedding against the baseline
-        deltas = text_embeddings - embedding_baseline
+            current_weight += (positive_direction + negative_direction) * bracket_weight
+            if positive_direction == 0 and negative_direction == 0:
+                weights[..., index+1] = current_weight
 
-        #Weigh our deltas and then add them back to the baseline.
-        weighted = (embedding_baseline + (deltas * weights))
+        #Re-mean the weights to restore the original mean.
+        old_mean = text_embeddings.mean()
+        weighted = text_embeddings * weights
+        new_mean = weighted.mean()
+        avg_mean = old_mean / new_mean
+        weighted *= avg_mean
 
         return weighted
 
@@ -208,7 +192,7 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
         )
         text_embeddings = text_embeddings[0]
 
-        text_embeddings = self.weigh_embeddings(prompt, text_embeddings, attention_mask, device)
+        text_embeddings = self.weigh_embeddings(prompt, text_embeddings, device)
 
         bs_embed, seq_len, _ = text_embeddings.shape
         text_embeddings = text_embeddings.repeat(1, num_images_per_prompt, 1)
