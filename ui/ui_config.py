@@ -11,6 +11,7 @@ def save_ui_config(**kwargs):
         dir_path.mkdir()
     dest = (dir_path/file_name)
     OmegaConf.save(config=config, f=dest)
+    return config
 
 def load_ui_config(model_dropdown):
     dir_path = Path("./configs")

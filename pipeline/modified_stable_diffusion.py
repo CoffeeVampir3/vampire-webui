@@ -349,15 +349,15 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
             if callback is not None and i % callback_steps == 0:
                 callback(i, t, latents)
 
-        image = self.decode_latents(latents)
+        images = self.decode_latents(latents)
 
         if output_type == "pil":
-            image = self.numpy_to_pil(image)
+            images = self.numpy_to_pil(images)
 
         if not return_dict:
-            return (image, None)
+            return (images, None)
 
-        return ModifiedDiffusionPipelineOutput(images=image, nsfw_content_detected=None)
+        return ModifiedDiffusionPipelineOutput(images=images, nsfw_content_detected=None)
 
 #Latents decoder
 """

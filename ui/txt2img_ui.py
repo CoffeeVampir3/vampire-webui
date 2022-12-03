@@ -42,7 +42,6 @@ def create(css):
             cfg_slider = gr.Slider(minimum=1, maximum=50,value=7,step=0.5, label="CFG Scale")
 
         with gr.Box(elem_id="gallerybox"):
-            output_img = gr.Gallery()
             with gr.Row():
                 model_dropdown = gr.Dropdown(label="Model", choices=ui_config.enumerate_models())
                 model_dropdown.change(fn=model_changed, inputs=model_dropdown, outputs=None)
@@ -52,8 +51,9 @@ def create(css):
 
                 app_inputs = [model_dropdown, sampler_dropdown, prompt_textbox, negative_prompt_textbox, seed, in_parallel_slider, generation_runs_slider, width_slider, height_slider, num_steps_slider, cfg_slider]
                 launch_btn = gr.Button(value="Generate")
-                launch_btn.click(dp.run_pipeline, inputs=app_inputs, outputs=output_img)
-
+            output_gallery = gr.Gallery()
+            launch_btn.click(dp.run_pipeline, inputs=app_inputs, outputs=output_gallery)
+            
         load_config = partial(ui_config.load_ui_config, model_dropdown)
         block.load(load_config, inputs=None, outputs=app_inputs)
     return block

@@ -3,3 +3,4 @@ __pycache__/
 /configs
 /xformers
 /vampire_webui.egg-info
+/outputs

@@ -4,6 +4,9 @@ from pipeline.modified_stable_diffusion import ModifiedDiffusionPipeline
 import ui.ui_config as conf
 import sys
 import random
+from pathlib import Path
+from PIL import Image
+from omegaconf import OmegaConf
 
 from diffusers import (
     DDIMScheduler,
@@ -70,19 +73,7 @@ def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_p
     multi_prompt = [prompt] * generate_x_in_parallel
     multi_negative_prompt = [neg_prompt] * generate_x_in_parallel
 
-    images = []
-    with autocast("cuda"):
-        for i in range(batches):
-            generator.manual_seed(nseed + i)
-            out = pipe(prompt=multi_prompt, negative_prompt=multi_negative_prompt, height=height, width=width, num_inference_steps=num_steps, guidance_scale=cfg,generator=generator)
-            images.extend(out.images)
-            yield images
-            del out
-    
-    torch.cuda.empty_cache()
-    torch.cuda.synchronize()
-
-    conf.save_ui_config(
+    config = conf.save_ui_config(
         model_id=model_id,
         sampler_id=sampler_id,
         prompt=prompt, 
@@ -94,7 +85,41 @@ def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_p
         height=height, 
         num_steps=num_steps, 
         cfg=cfg)
+
+    images = []
+    with autocast("cuda"):
+        for i in range(batches):
+            current_seed = nseed+i
+            generator.manual_seed(current_seed)
+            out = pipe(prompt=multi_prompt, negative_prompt=multi_negative_prompt, height=height, width=width, num_inference_steps=num_steps, guidance_scale=cfg,generator=generator)
+            
+            images.extend([encode_exif_data(x, current_seed, index, i, config) for index, x in enumerate(out.images)])
+            yield images
+            del out
+    
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize()
     return images
+
+def encode_exif_data(image, seed, image_num, batch_number, config):
+    dir_path = Path(f"./outputs/{config.prompt}")
+    file_name = f"b{batch_number}-s{seed+image_num}.png"
+    if not dir_path.exists():
+        dir_path.mkdir()
+    dest = (dir_path/file_name)
+
+    #unicode
+    prefix = bytes.fromhex('554E49434F444500')
+    content = ""
+    for cf, cv in zip(list(config), list(config.values())):
+        content += cf + ": " + str(cv) + "\n"
+
+    #outstring = (re.sub('.', lambda x: r'\u % 04X' % ord(x.group()), output))
+    #res.encode()
+    exif_data = image.getexif()
+    exif_data[0x9286] = prefix + content.encode('utf-16le')
+    image.save(dest, exif=exif_data)
+    return image
 
 def load_pipeline(model_id):
     global pipe
