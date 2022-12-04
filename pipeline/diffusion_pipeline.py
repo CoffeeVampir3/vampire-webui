@@ -6,7 +6,7 @@ import sys
 import random
 from PIL import Image
 from omegaconf import OmegaConf
-from utils.image_utils import encode_exif_data
+from utils.image_utils import encode_and_save_data
 
 from diffusers import (
     DDIMScheduler,
@@ -92,7 +92,7 @@ def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_p
             generator.manual_seed(current_seed)
             out = pipe(prompt=multi_prompt, negative_prompt=multi_negative_prompt, height=height, width=width, num_inference_steps=num_steps, guidance_scale=cfg,generator=generator)
             
-            images.extend([encode_exif_data(x, current_seed, index, i, config) for index, x in enumerate(out.images)])
+            images.extend([encode_and_save_data(x, current_seed, index, i, config) for index, x in enumerate(out.images)])
             yield images
             del out
     
