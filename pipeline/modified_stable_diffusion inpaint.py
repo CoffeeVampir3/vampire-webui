@@ -8,9 +8,11 @@ import PIL
 from PIL import Image
 import numpy as np
 
+from pipeline.modified_stable_diffusion import ModifiedDiffusionPipeline
+
 from diffusers.utils import is_accelerate_available
 from diffusers.utils import BaseOutput
-from diffusers import AutoencoderKL, UNet2DConditionModel, DiffusionPipeline
+from diffusers import AutoencoderKL, UNet2DConditionModel
 from diffusers import (
     DDIMScheduler,
     DPMSolverMultistepScheduler,
@@ -26,6 +28,79 @@ https://github.com/huggingface/diffusers/blob/main/src/diffusers/pipelines/stabl
 
 This is a stripped down and modified version of that pipeline.
 """
+
+
+def prepare_mask_and_masked_image(image, mask):
+    """
+    Prepares a pair (image, mask) to be consumed by the Stable Diffusion pipeline. This means that those inputs will be
+    converted to ``torch.Tensor`` with shapes ``batch x channels x height x width`` where ``channels`` is ``3`` for the
+    ``image`` and ``1`` for the ``mask``.
+    The ``image`` will be converted to ``torch.float32`` and normalized to be in ``[-1, 1]``. The ``mask`` will be
+    binarized (``mask > 0.5``) and cast to ``torch.float32`` too.
+    Args:
+        image (Union[np.array, PIL.Image, torch.Tensor]): The image to inpaint.
+            It can be a ``PIL.Image``, or a ``height x width x 3`` ``np.array`` or a ``channels x height x width``
+            ``torch.Tensor`` or a ``batch x channels x height x width`` ``torch.Tensor``.
+        mask (_type_): The mask to apply to the image, i.e. regions to inpaint.
+            It can be a ``PIL.Image``, or a ``height x width`` ``np.array`` or a ``1 x height x width``
+            ``torch.Tensor`` or a ``batch x 1 x height x width`` ``torch.Tensor``.
+    Raises:
+        ValueError: ``torch.Tensor`` images should be in the ``[-1, 1]`` range. ValueError: ``torch.Tensor`` mask
+        should be in the ``[0, 1]`` range. ValueError: ``mask`` and ``image`` should have the same spatial dimensions.
+        TypeError: ``mask`` is a ``torch.Tensor`` but ``image`` is not
+            (ot the other way around).
+    Returns:
+        tuple[torch.Tensor]: The pair (mask, masked_image) as ``torch.Tensor`` with 4
+            dimensions: ``batch x channels x height x width``.
+    """
+    if isinstance(image, torch.Tensor):
+        if not isinstance(mask, torch.Tensor):
+            raise TypeError(f"`image` is a torch.Tensor but `mask` (type: {type(mask)} is not")
+        # Batch single image
+        if image.ndim == 3:
+            assert image.shape[0] == 3, "Image outside a batch should be of shape (3, H, W)"
+            image = image.unsqueeze(0)
+        # Batch and add channel dim for single mask
+        if mask.ndim == 2:
+            mask = mask.unsqueeze(0).unsqueeze(0)
+        # Batch single mask or add channel dim
+        if mask.ndim == 3:
+            # Single batched mask, no channel dim or single mask not batched but channel dim
+            if mask.shape[0] == 1:
+                mask = mask.unsqueeze(0)
+            # Batched masks no channel dim
+            else:
+                mask = mask.unsqueeze(1)
+        assert image.ndim == 4 and mask.ndim == 4, "Image and Mask must have 4 dimensions"
+        assert image.shape[-2:] == mask.shape[-2:], "Image and Mask must have the same spatial dimensions"
+        assert image.shape[0] == mask.shape[0], "Image and Mask must have the same batch size"
+        # Check image is in [-1, 1]
+        if image.min() < -1 or image.max() > 1:
+            raise ValueError("Image should be in [-1, 1] range")
+        # Check mask is in [0, 1]
+        if mask.min() < 0 or mask.max() > 1:
+            raise ValueError("Mask should be in [0, 1] range")
+        # Binarize mask
+        mask[mask < 0.5] = 0
+        mask[mask >= 0.5] = 1
+        # Image as float32
+        image = image.to(dtype=torch.float32)
+    elif isinstance(mask, torch.Tensor):
+        raise TypeError(f"`mask` is a torch.Tensor but `image` (type: {type(image)} is not")
+    else:
+        if isinstance(image, PIL.Image.Image):
+            image = np.array(image.convert("RGB"))
+        image = image[None].transpose(0, 3, 1, 2)
+        image = torch.from_numpy(image).to(dtype=torch.float32) / 127.5 - 1.0
+        if isinstance(mask, PIL.Image.Image):
+            mask = np.array(mask.convert("L"))
+            mask = mask.astype(np.float32) / 255.0
+        mask = mask[None, None]
+        mask[mask < 0.5] = 0
+        mask[mask >= 0.5] = 1
+        mask = torch.from_numpy(mask)
+    masked_image = image * (mask < 0.5)
+    return mask, masked_image
 
 class BypassSafetyChecker(PreTrainedModel):
     config_class = CLIPConfig
@@ -46,7 +121,7 @@ class ModifiedDiffusionPipelineOutput(BaseOutput):
     images: Union[List[PIL.Image.Image], np.ndarray]
     nsfw_content_detected: Optional[List[bool]]
 
-class ModifiedDiffusionPipeline(DiffusionPipeline):
+class ModifiedDiffusionInpaintPipeline(ModifiedDiffusionPipeline):
     def __init__(
         self,
         vae: AutoencoderKL,
@@ -88,207 +163,37 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
 
         return scheduler_output
 
-    def enable_xformers_memory_efficient_attention(self):
-        self.unet.set_use_memory_efficient_attention_xformers(True)
-
-    def disable_xformers_memory_efficient_attention(self):
-        self.unet.set_use_memory_efficient_attention_xformers(False)
-
-    def enable_attention_slicing(self, slice_size: Optional[Union[str, int]] = "auto"):
-        if slice_size == "auto":
-            if isinstance(self.unet.config.attention_head_dim, int):
-                slice_size = self.unet.config.attention_head_dim // 2
-            else:
-                slice_size = min(self.unet.config.attention_head_dim)
-
-        self.unet.set_attention_slice(slice_size)
-
-    def disable_attention_slicing(self):
-        self.enable_attention_slicing(None)
-
-    def enable_sequential_cpu_offload(self, gpu_id=0):
-        if is_accelerate_available():
-            from accelerate import cpu_offload
-        else:
-            raise ImportError("Please install accelerate via `pip install accelerate`")
-
-        device = torch.device(f"cuda:{gpu_id}")
-
-        for cpu_offloaded_model in [self.unet, self.text_encoder, self.vae]:
-            if cpu_offloaded_model is not None:
-                cpu_offload(cpu_offloaded_model, device)
-
-    @property
-    def _execution_device(self):
-        if self.device != torch.device("meta") or not hasattr(self.unet, "_hf_hook"):
-            return self.device
-        for module in self.unet.modules():
-            if (
-                hasattr(module, "_hf_hook")
-                and hasattr(module._hf_hook, "execution_device")
-                and module._hf_hook.execution_device is not None
-            ):
-                return torch.device(module._hf_hook.execution_device)
-        return self.device
-
-    def weigh_embeddings(self, prompt, text_embeddings, device):
-        #Create an unweighted set of weights
-        weights = torch.full(text_embeddings.shape, 1.0).to(device)
-
-        tokens = self.tokenizer.tokenize(prompt[0])
-
-        #add token weights using a simple moving sum of brackets
-        current_weight = 1.0
-        bracket_weight = 0.1
-        for index, token in enumerate(tokens):
-            positive_right, positive_left = token.count('('), token.count(')')
-            negative_right, negative_left = token.count('['), token.count(']')
-
-            positive_direction = positive_right + negative_left
-            negative_direction = -(negative_right + positive_left)
-
-            current_weight += (positive_direction + negative_direction) * bracket_weight
-            if positive_direction == 0 and negative_direction == 0:
-                weights[..., index+1] = current_weight
-
-        #Re-mean the weights to restore the original mean.
-        old_mean = text_embeddings.mean()
-        weighted = text_embeddings * weights
-        new_mean = weighted.mean()
-        avg_mean = old_mean / new_mean
-        weighted *= avg_mean
-
-        return weighted
-
-    def _encode_prompt(self, prompt, device, num_images_per_prompt, do_classifier_free_guidance, negative_prompt):
-        batch_size = len(prompt) if isinstance(prompt, list) else 1
-
-        text_inputs = self.tokenizer(
-            prompt,
-            padding="max_length",
-            max_length=self.tokenizer.model_max_length,
-            truncation=True,
-            return_tensors="pt",
+    def prepare_mask_latents(
+        self, mask, masked_image, batch_size, height, width, dtype, device, generator, do_classifier_free_guidance
+    ):
+        # resize the mask to latents shape as we concatenate the mask to the latents
+        # we do that before converting to dtype to avoid breaking in case we're using cpu_offload
+        # and half precision
+        mask = torch.nn.functional.interpolate(
+            mask, size=(height // self.vae_scale_factor, width // self.vae_scale_factor)
         )
-
-        text_input_ids = text_inputs.input_ids
-        untruncated_ids = self.tokenizer(prompt, padding="max_length", return_tensors="pt").input_ids
-
-        if not torch.equal(text_input_ids, untruncated_ids):
-            removed_text = self.tokenizer.batch_decode(untruncated_ids[:, self.tokenizer.model_max_length - 1 : -1])
-            print(
-                "The following part of your input was truncated because CLIP can only handle sequences up to"
-                f" {self.tokenizer.model_max_length} tokens: {removed_text}"
-            )
-
-        if hasattr(self.text_encoder.config, "use_attention_mask") and self.text_encoder.config.use_attention_mask:
-            attention_mask = text_inputs.attention_mask.to(device)
-        else:
-            attention_mask = None
-
-        text_embeddings = self.text_encoder(
-            text_input_ids.to(device),
-            attention_mask=attention_mask,
+        mask = mask.to(device=device, dtype=dtype)
+        masked_image = masked_image.to(device=device, dtype=dtype)
+        # encode the mask image into latents space so we can concatenate it to the latents
+        masked_image_latents = self.vae.encode(masked_image).latent_dist.sample(generator=generator)
+        masked_image_latents = 0.18215 * masked_image_latents
+        # duplicate mask and masked_image_latents for each generation per prompt, using mps friendly method
+        mask = mask.repeat(batch_size, 1, 1, 1)
+        masked_image_latents = masked_image_latents.repeat(batch_size, 1, 1, 1)
+        mask = torch.cat([mask] * 2) if do_classifier_free_guidance else mask
+        masked_image_latents = (
+            torch.cat([masked_image_latents] * 2) if do_classifier_free_guidance else masked_image_latents
         )
-        text_embeddings = text_embeddings[0]
-
-        text_embeddings = self.weigh_embeddings(prompt, text_embeddings, device)
-
-        bs_embed, seq_len, _ = text_embeddings.shape
-        text_embeddings = text_embeddings.repeat(1, num_images_per_prompt, 1)
-        text_embeddings = text_embeddings.view(bs_embed * num_images_per_prompt, seq_len, -1)
-
-        if do_classifier_free_guidance:
-            uncond_tokens: List[str]
-            if negative_prompt is None:
-                uncond_tokens = [""] * batch_size
-            else:
-                uncond_tokens = negative_prompt
-
-            max_length = text_input_ids.shape[-1]
-            uncond_input = self.tokenizer(
-                uncond_tokens,
-                padding="max_length",
-                max_length=max_length,
-                truncation=True,
-                return_tensors="pt",
-            )
-
-            if hasattr(self.text_encoder.config, "use_attention_mask") and self.text_encoder.config.use_attention_mask:
-                attention_mask = uncond_input.attention_mask.to(device)
-            else:
-                attention_mask = None
-
-            uncond_embeddings = self.text_encoder(
-                uncond_input.input_ids.to(device),
-                attention_mask=attention_mask,
-            )
-            uncond_embeddings = uncond_embeddings[0]
-
-            seq_len = uncond_embeddings.shape[1]
-            uncond_embeddings = uncond_embeddings.repeat(1, num_images_per_prompt, 1)
-            uncond_embeddings = uncond_embeddings.view(batch_size * num_images_per_prompt, seq_len, -1)
-
-            text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
-
-        return text_embeddings
-
-    def run_safety_checker(self, image, device, dtype):
-        return image, None
-
-    def decode_latents(self, latents):
-        latents = 1 / 0.18215 * latents
-        image = self.vae.decode(latents).sample
-        image = (image / 2 + 0.5).clamp(0, 1)
-        image = image.cpu().permute(0, 2, 3, 1).float().numpy()
-        return image
-
-    def prepare_extra_step_kwargs(self, generator, eta):
-        accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys())
-        extra_step_kwargs = {}
-        if accepts_eta:
-            extra_step_kwargs["eta"] = eta
-
-        # check if the scheduler accepts generator
-        accepts_generator = "generator" in set(inspect.signature(self.scheduler.step).parameters.keys())
-        if accepts_generator:
-            extra_step_kwargs["generator"] = generator
-        return extra_step_kwargs
-
-    def check_inputs(self, prompt, height, width, callback_steps):
-        if not isinstance(prompt, str) and not isinstance(prompt, list):
-            raise ValueError(f"`prompt` has to be of type `str` or `list` but is {type(prompt)}")
-
-        if height % 8 != 0 or width % 8 != 0:
-            raise ValueError(f"`height` and `width` have to be divisible by 8 but are {height} and {width}.")
-
-        if (callback_steps is None) or (
-            callback_steps is not None and (not isinstance(callback_steps, int) or callback_steps <= 0)
-        ):
-            raise ValueError(
-                f"`callback_steps` has to be a positive integer but is {callback_steps} of type"
-                f" {type(callback_steps)}."
-            )
-
-    def prepare_latents(self, batch_size, num_channels_latents, height, width, dtype, device, generator, latents=None):
-        shape = (batch_size, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
-        if latents is None:
-            if device.type == "mps":
-                latents = torch.randn(shape, generator=generator, device="cpu", dtype=dtype).to(device)
-            else:
-                latents = torch.randn(shape, generator=generator, device=device, dtype=dtype)
-        else:
-            if latents.shape != shape:
-                raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {shape}")
-            latents = latents.to(device)
-
-        latents = latents * self.scheduler.init_noise_sigma
-        return latents
+        # aligning device to prevent device errors when concating it with the latent model input
+        masked_image_latents = masked_image_latents.to(device=device, dtype=dtype)
+        return mask, masked_image_latents
 
     @torch.no_grad()
     def __call__(
         self,
         prompt: Union[str, List[str]],
+        image: Union[torch.FloatTensor, PIL.Image.Image],
+        mask_image: Union[torch.FloatTensor, PIL.Image.Image],
         height: Optional[int] = None,
         width: Optional[int] = None,
         num_inference_steps: int = 50,
@@ -305,6 +210,8 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
     ):
         height = height or self.unet.config.sample_size * self.vae_scale_factor
         width = width or self.unet.config.sample_size * self.vae_scale_factor
+
+        print("Image pipeline.")
 
         self.check_inputs(prompt, height, width, callback_steps)
 
@@ -358,27 +265,3 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
             return (images, None)
 
         return ModifiedDiffusionPipelineOutput(images=images, nsfw_content_detected=None)
-
-#Latents decoder
-"""
-        print(latents.shape)
-        latent_rgb_factors = torch.tensor([
-            #   R        G        B
-            [0.298, 0.207, 0.208],  # L1
-            [0.187, 0.286, 0.173],  # L2
-            [-0.158, 0.189, 0.264],  # L3
-            [-0.184, -0.271, -0.473],  # L4
-        ]).cuda()
-        rgb = torch.einsum('...lhw,lr -> ...rhw', latents, latent_rgb_factors)
-
-        import einops
-        tensor = (((rgb + 1) / 2)
-            .clamp(0, 1)  # change scale from -1..1 to 0..1
-            .mul(0xFF)  # to 0..255
-            .byte())
-        tensor = torch.squeeze(tensor)
-        tensor = einops.rearrange(tensor, 'c h w -> h w c')
-
-        image = [PIL.Image.fromarray(tensor.cpu().numpy())]
-        return ModifiedDiffusionPipelineOutput(images=image, nsfw_content_detected=None)
-"""

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 #TODO @Z:: Hardcoded path.
-def encode_exif_data(image, seed, image_num, batch_number, config):
+def encode_and_save_data(image, seed, image_num, batch_number, config):
     dir_path = Path(f"./outputs/{config.prompt}")
     file_name = f"b{batch_number}-s{seed+image_num}.png"
     if not dir_path.exists():
