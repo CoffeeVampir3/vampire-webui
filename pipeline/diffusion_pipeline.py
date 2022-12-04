@@ -4,14 +4,13 @@ from pipeline.modified_stable_diffusion import ModifiedDiffusionPipeline
 import ui.ui_config as conf
 import sys
 import random
-from pathlib import Path
 from PIL import Image
 from omegaconf import OmegaConf
+from utils.image_utils import encode_exif_data
 
 from diffusers import (
     DDIMScheduler,
     DPMSolverMultistepScheduler,
-    DDPMScheduler,
     EulerAncestralDiscreteScheduler,
     EulerDiscreteScheduler,
     LMSDiscreteScheduler,
@@ -101,29 +100,6 @@ def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_p
     torch.cuda.synchronize()
     return images
 
-def encode_exif_data(image, seed, image_num, batch_number, config):
-    dir_path = Path(f"./outputs/{config.prompt}")
-    file_name = f"b{batch_number}-s{seed+image_num}.png"
-    if not dir_path.exists():
-        dir_path.mkdir()
-    dest = (dir_path/file_name)
-
-    #unicode
-    prefix = bytes.fromhex('554E49434F444500')
-    content = ""
-    #hacky but whatever
-    config.seed = seed
-    config.generate_x_in_parallel = image_num
-    config.batches = batch_number 
-    for cf, cv in zip(list(config), list(config.values())):
-        content += cf + ": " + str(cv) + "\n"
-
-    exif_data = image.getexif()
-    user_comment_tiff = 0x9286
-    exif_data[user_comment_tiff] = prefix + content.encode('utf-16le')
-    image.save(dest, exif=exif_data)
-    return image
-
 def load_pipeline(model_id):
     global pipe
     global current_model_path
@@ -155,7 +131,6 @@ def get_sampling_strategies():
         "DPM": DPMSolverMultistepScheduler
     }
     return samplers
-
 
 def enumerate_samplers():
     samplers = list(get_sampling_strategies().keys())

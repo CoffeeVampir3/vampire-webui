@@ -53,7 +53,7 @@ def create(css):
                 launch_btn = gr.Button(value="Generate")
             output_gallery = gr.Gallery()
             launch_btn.click(dp.run_pipeline, inputs=app_inputs, outputs=output_gallery)
-            
+
         load_config = partial(ui_config.load_ui_config, model_dropdown)
         block.load(load_config, inputs=None, outputs=app_inputs)
     return block
