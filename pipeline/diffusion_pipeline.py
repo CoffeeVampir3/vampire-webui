@@ -1,6 +1,7 @@
 import torch
 from torch import autocast
 from pipeline.modified_stable_diffusion import ModifiedDiffusionPipeline
+from pipeline.modified_stable_diffusion_img2img import ModifiedDiffusionImg2ImgPipeline
 import ui.ui_config as conf
 import sys
 import random
@@ -101,6 +102,21 @@ def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_p
     return images
 
 def load_pipeline(model_id):
+    global pipe
+    global current_model_path
+    pipe = None
+    if model_id is None:
+        print("Cannot load empty model!")
+        return
+    model_path = f"./content/{model_id}"
+    current_model_path = model_path
+
+    pipe = ModifiedDiffusionPipeline.from_pretrained(model_path, safety_checker=None)
+    pipe = pipe.to("cuda")
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize()
+
+def load_img2img_pipeline_temp(model_id):
     global pipe
     global current_model_path
     pipe = None

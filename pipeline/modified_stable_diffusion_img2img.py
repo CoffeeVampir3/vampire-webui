@@ -121,7 +121,7 @@ class ModifiedDiffusionPipelineOutput(BaseOutput):
     images: Union[List[PIL.Image.Image], np.ndarray]
     nsfw_content_detected: Optional[List[bool]]
 
-class ModifiedDiffusionInpaintPipeline(ModifiedDiffusionPipeline):
+class ModifiedDiffusionImg2ImgPipeline(ModifiedDiffusionPipeline):
     def __init__(
         self,
         vae: AutoencoderKL,

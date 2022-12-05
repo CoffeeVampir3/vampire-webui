@@ -11,7 +11,7 @@ def auto_seed():
     return -1
 
 def model_changed(new_model):
-    dp.load_pipeline(new_model)
+    dp.load_img2img_pipeline_temp(new_model)
 
 def sampler_changed(new_sampler):
     dp.switch_sampler(new_sampler)
