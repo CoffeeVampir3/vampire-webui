@@ -16,6 +16,10 @@ from diffusers import (
     EulerDiscreteScheduler,
     LMSDiscreteScheduler,
     PNDMScheduler,
+    HeunDiscreteScheduler,
+    DPMSolverSinglestepScheduler,
+    KDPM2DiscreteScheduler,
+    KDPM2AncestralDiscreteScheduler
 )
 
 global pipe
@@ -24,18 +28,30 @@ global sampler
 
 #Working but considering UI implementation.
 """
-def test_load_pt_embedding(embedding_name, pipe):
-    #Load an embedding
-    embedding_path = embedding_name + ".pt"
-    loaded_embeds = torch.load(embedding_path, map_location="cpu")
+#TODO @Z:: Hardcoded path.
+from pathlib import Path
+import os
+def enumerate_embeddings():
+    dir_path = Path("./embeddings")
+    if not dir_path.exists():
+        return None
+
+    files = os.listdir(dir_path)
+    return files
+
+def load_embeddings(pipe):
+    [test_load_pt_embedding(file, pipe) for (file) in enumerate_embeddings()]
+
+def test_load_pt_embedding(embedding_file, pipe):
+    filename = "./embeddings/" + embedding_file
+    embedding_name = embedding_file.split('.')[0]
+    loaded_embeds = torch.load(filename, map_location="cpu")
     print(loaded_embeds)
-    print(loaded_embeds.keys())
 
     #trick to get the * token out of the embedding
     string_to_token = loaded_embeds['string_to_token']
     string_to_param = loaded_embeds['string_to_param']
     token = list(string_to_token.keys())[0]
-    print(f'got key{token}')
 
     #we cast the embeds to the correct type
     embeds = string_to_param[token]
@@ -43,14 +59,17 @@ def test_load_pt_embedding(embedding_name, pipe):
     embeds.to(dtype)
     
     #try to form the embedding token if it's not already existant in the token data
-    token = '<art by {embedding_name}>'
-    num_added_tokens = pipe.tokenizer.add_tokens(token)
+    token = f'<{embedding_name}>'
+    repeated_token = [token]
+    num_added_tokens = pipe.tokenizer.add_tokens(repeated_token)
     if num_added_tokens == 0:
         return None
 
     #add the embedding token into the tokenizer and add the embed weights to the text encoder
     pipe.text_encoder.resize_token_embeddings(len(pipe.tokenizer))
-    token_id = pipe.tokenizer.convert_tokens_to_ids(token)
+    token_id = pipe.tokenizer.convert_tokens_to_ids(repeated_token)
+    embeds = embeds.cuda()
+    print(pipe.text_encoder.get_input_embeddings().weight.data.shape)
     pipe.text_encoder.get_input_embeddings().weight.data[token_id] = embeds
 """
 
@@ -144,7 +163,11 @@ def get_sampling_strategies():
         "Euler-A": EulerAncestralDiscreteScheduler,
         "LMS": LMSDiscreteScheduler,
         "PNDM": PNDMScheduler,
-        "DPM": DPMSolverMultistepScheduler
+        "DPM-Multi": DPMSolverMultistepScheduler,
+        "Heun":    HeunDiscreteScheduler,
+        "DPM-Single":    DPMSolverSinglestepScheduler,
+        "KDPM-2":    KDPM2DiscreteScheduler,
+        "KDPM-2A":    KDPM2AncestralDiscreteScheduler
     }
     return samplers
 
