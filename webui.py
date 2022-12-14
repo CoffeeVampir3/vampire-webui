@@ -1,7 +1,5 @@
 import gradio as gr
-import ui.txt2img_ui
-import ui.img2img_ui
-import ui.convert_to_diffuser_ui
+from ui import txt2img_ui
 
 css = """
         #seedbox {width: 30%; justify-content:space-between;}
@@ -14,9 +12,9 @@ css = """
 app = gr.Blocks(css=css)
 with app:
     with gr.Tab(label="Text to Image"):
-        ui.txt2img_ui.create(css)
-    with gr.Tab(label="Image to Image"):
-        ui.img2img_ui.create(css)
+        txt2img_ui.create(css)
+    #with gr.Tab(label="Image to Image"):
+    #    ui.img2img_ui.create(css)
     #with gr.Tab(label="Upgrade old models to diffusers"):
     #    ui.convert_to_diffuser_ui.create(css)
 

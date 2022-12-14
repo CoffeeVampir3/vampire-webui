@@ -109,6 +109,7 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
     def enable_sequential_cpu_offload(self, gpu_id=0):
         if is_accelerate_available():
             from accelerate import cpu_offload
+            pass
         else:
             raise ImportError("Please install accelerate via `pip install accelerate`")
 
@@ -172,14 +173,6 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
         )
 
         text_input_ids = text_inputs.input_ids
-        untruncated_ids = self.tokenizer(prompt, padding="max_length", return_tensors="pt").input_ids
-
-        if not torch.equal(text_input_ids, untruncated_ids):
-            removed_text = self.tokenizer.batch_decode(untruncated_ids[:, self.tokenizer.model_max_length - 1 : -1])
-            print(
-                "The following part of your input was truncated because CLIP can only handle sequences up to"
-                f" {self.tokenizer.model_max_length} tokens: {removed_text}"
-            )
 
         if hasattr(self.text_encoder.config, "use_attention_mask") and self.text_encoder.config.use_attention_mask:
             attention_mask = text_inputs.attention_mask.to(device)
@@ -191,7 +184,7 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
             attention_mask=attention_mask,
         )
         text_embeddings = text_embeddings[0]
-
+    
         text_embeddings = self.weigh_embeddings(prompt, text_embeddings, device)
 
         bs_embed, seq_len, _ = text_embeddings.shape
@@ -342,7 +335,7 @@ class ModifiedDiffusionPipeline(DiffusionPipeline):
 
             if do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                noise_pred = (noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond))
 
             latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample
 

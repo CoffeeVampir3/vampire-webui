@@ -1,7 +1,7 @@
 import torch
 from torch import autocast
 from pipeline.modified_stable_diffusion import ModifiedDiffusionPipeline
-from pipeline.modified_stable_diffusion_img2img import ModifiedDiffusionImg2ImgPipeline
+from diffusers.utils.import_utils import is_xformers_available
 import ui.ui_config as conf
 import sys
 import random
@@ -86,6 +86,17 @@ def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_p
     except:
         pipe.scheduler = DPMSolverMultistepScheduler.from_pretrained(current_model_path, subfolder="scheduler")
 
+    if is_xformers_available():
+        try:
+            pipe.enable_xformers_memory_efficient_attention()
+        except Exception as e:
+            print(
+                "Could not enable memory efficient attention. Make sure xformers is installed"
+                f" correctly and a GPU is available: {e}"
+            )
+
+    pipe.enable_attention_slicing()
+
     nseed = random.randint(0, (sys.maxsize/64)) if seed == -1 else seed
     generator = torch.Generator("cuda").manual_seed(nseed)
 
@@ -114,9 +125,9 @@ def run_pipeline(model_id, sampler_id, prompt, neg_prompt, seed, generate_x_in_p
             
             images.extend([encode_and_save_data(x, current_seed, index, i, config) for index, x in enumerate(out.images)])
             yield images
+            torch.cuda.empty_cache()
             del out
     
-    torch.cuda.empty_cache()
     torch.cuda.synchronize()
     return images
 
@@ -132,21 +143,8 @@ def load_pipeline(model_id):
 
     pipe = ModifiedDiffusionPipeline.from_pretrained(model_path, safety_checker=None)
     pipe = pipe.to("cuda")
-    torch.cuda.empty_cache()
-    torch.cuda.synchronize()
 
-def load_img2img_pipeline_temp(model_id):
-    global pipe
-    global current_model_path
-    pipe = None
-    if model_id is None:
-        print("Cannot load empty model!")
-        return
-    model_path = f"./content/{model_id}"
-    current_model_path = model_path
-
-    pipe = ModifiedDiffusionPipeline.from_pretrained(model_path, safety_checker=None)
-    pipe = pipe.to("cuda")
+    print("Loaded pipe.")
     torch.cuda.empty_cache()
     torch.cuda.synchronize()
 
@@ -157,6 +155,7 @@ def switch_sampler(new_sampler):
     sampler = out
 
 def get_sampling_strategies():
+    global pipe
     samplers = {
         "DDIM": DDIMScheduler,
         "Euler": EulerDiscreteScheduler,
@@ -169,6 +168,7 @@ def get_sampling_strategies():
         "KDPM-2":    KDPM2DiscreteScheduler,
         "KDPM-2A":    KDPM2AncestralDiscreteScheduler
     }
+
     return samplers
 
 def enumerate_samplers():
