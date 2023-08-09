@@ -1,6 +1,10 @@
 # vampire-webui
 
-In development web-ui for running SD 2.0 locally, using diffusers.
+
+# This repository is no longer under active development. 
+
+Active repo for SDXL continues here: (https://github.com/CoffeeVampir3/manual1111)
+
 ![alt text](https://github.com/CoffeeVampir3/vampire-webui/blob/96733e8763bcb02b975687a050337482dcd5fb2c/image.png)
 
 # Usage
